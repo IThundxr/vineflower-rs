@@ -39,31 +39,23 @@ impl DecompilerBuilder {
         DecompilerBuilder(global)
     }
 
-    pub fn inputs(&self, paths: &[&Path]) -> &Self {
+    pub fn inputs<P: AsRef<Path>>(&self, paths: &[P]) -> &Self {
         let mut env = jvm::attach_current_thread_permanently();
 
-        let file_cls = env.find_class("java/io/File").unwrap();
-        let arr = &env
-            .new_object_array(paths.len() as i32, file_cls, JObject::null())
-            .unwrap();
-
-        for (i, &p) in paths.iter().enumerate() {
-            let file = JavaFile::new(p).unwrap();
-            env.set_object_array_element(arr, i as i32, file).unwrap();
-        }
+        let arr = JavaFile::new_array(paths).unwrap();
 
         env.call_method(
             self,
             "inputs",
             "([Ljava/io/File;)Lorg/jetbrains/java/decompiler/api/Decompiler$Builder;",
-            &[JValue::from(arr)],
+            &[JValue::from(&arr)],
         )
         .unwrap();
 
         self
     }
 
-    pub fn output_to_directory(&self, path: &Path) -> &Self {
+    pub fn output_to_directory<P: AsRef<Path>>(&self, path: P) -> &Self {
         let file = JavaFile::new(path).unwrap();
 
         self.output(
@@ -73,7 +65,7 @@ impl DecompilerBuilder {
         )
     }
 
-    pub fn output_to_file(&self, path: &Path) -> &Self {
+    pub fn output_to_file<P: AsRef<Path>>(&self, path: P) -> &Self {
         let file = JavaFile::new(path).unwrap();
 
         self.output(
@@ -117,8 +109,8 @@ impl DecompilerBuilder {
             PreferenceValue::Boolean(val) => call_method(self, env, key, JValue::from(val)),
             PreferenceValue::Integer(val) => call_method(self, env, key, JValue::from(val)),
             PreferenceValue::String(val) => {
-                let jstring = env.new_string(val).unwrap();
-                call_method(self, env, key, JValue::from(&jstring));
+                let str = env.new_string(val).unwrap();
+                call_method(self, env, key, JValue::from(&str));
             }
         };
 
@@ -135,6 +127,46 @@ impl DecompilerBuilder {
             )
                 .unwrap();
         }
+    }
+
+    pub fn libraries<P: AsRef<Path>>(&self, paths: &[P]) -> &Self {
+        let mut env = jvm::attach_current_thread_permanently();
+
+        let arr = JavaFile::new_array(paths).unwrap();
+
+        env.call_method(
+            self,
+            "libraries",
+            "([Ljava/io/File;)Lorg/jetbrains/java/decompiler/api/Decompiler$Builder;",
+            &[JValue::from(&arr)],
+        )
+        .unwrap();
+
+        self
+    }
+
+    pub fn allowed_prefixes<'a, S: AsRef<&'a str>>(&self, strings: &[S]) -> &Self {
+        let mut env = jvm::attach_current_thread_permanently();
+
+        let string_cls = env.find_class("java/lang/String").unwrap();
+        let arr = env
+            .new_object_array(strings.len() as i32, string_cls, JObject::null())
+            .unwrap();
+
+        for (i, p) in strings.iter().enumerate() {
+            let str = env.new_string(p.as_ref()).unwrap();
+            env.set_object_array_element(&arr, i as i32, str).unwrap();
+        }
+
+        env.call_method(
+            self,
+            "allowedPrefixes",
+            "([Ljava/lang/String;)Lorg/jetbrains/java/decompiler/api/Decompiler$Builder;",
+            &[JValue::from(&arr)],
+        )
+        .unwrap();
+
+        self
     }
 
     pub fn build(&self) -> Decompiler {
@@ -156,6 +188,12 @@ impl DecompilerBuilder {
     }
 }
 
+impl Default for DecompilerBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub enum PreferenceValue {
     Boolean(bool),
     Integer(i32),
@@ -167,10 +205,9 @@ mod tests {
     use super::*;
 
     fn init_logger() {
-        let _ =
-            env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug"))
-                .is_test(true)
-                .init();
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug"))
+            .is_test(true)
+            .init();
     }
 
     #[test]
@@ -178,8 +215,8 @@ mod tests {
         init_logger();
 
         let decompiler = Decompiler::builder()
-            .inputs(&[Path::new("/home/ithundxr/Downloads/vineflower-1.11.2.jar")])
-            .output_to_file(Path::new("/home/ithundxr/Downloads/vineflower-1.11-2"))
+            .inputs(&["/home/ithundxr/Downloads/vineflower-1.11.2.jar"])
+            .output_to_directory("/home/ithundxr/Downloads/vineflower-1.11-2")
             .build();
 
         decompiler.decompile();
