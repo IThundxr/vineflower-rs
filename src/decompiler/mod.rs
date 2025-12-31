@@ -200,27 +200,18 @@ pub enum PreferenceValue {
     String(String),
 }
 
+// TODO: Overhaul tests to download a test jar to decompile and verify the decompile worked
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn init_logger() {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug"))
-            .is_test(true)
-            .init();
-    }
-
     #[test]
     fn test_decompiler_builder() {
-        init_logger();
-
         let decompiler = Decompiler::builder()
             .inputs(&["/home/ithundxr/Downloads/vineflower-1.11.2.jar"])
             .output_to_directory("/home/ithundxr/Downloads/vineflower-1.11-2")
             .build();
 
         decompiler.decompile();
-
-        assert!(true)
     }
 }
